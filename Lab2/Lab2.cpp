@@ -22,47 +22,59 @@ int main(int argc, char** argv)
 
 	uint32_t funcIndex = static_cast<uint32_t>(atoi(argv[args::ARG_FUNC]));
 
-	uint32_t threadsNumber = static_cast<uint32_t>(atoi(argv[args::ARG_THREADS_NUMBER]));
-
 	ntgrl::singleArgFunc function = mth::Math::getMathFunction(funcIndex);
 
-	double totalIntegral = 0;
+	uint32_t itersCount = static_cast<uint32_t>(atoi(argv[args::ARG_ITERATIONS_COUNT]));
 
-	double rectWidth = (right - left) / static_cast<double>(rects);
+	uint32_t multipliesCount = static_cast<uint32_t>(atoi(argv[args::ARG_THREADS_MULTIPLY_COUNT]));
 
-	double step = (right - left) / static_cast<double>(threadsNumber);
-
-	double* x = new double[threadsNumber];
-
-	x[0] = left;
-
-	omp_set_num_threads(threadsNumber);
-
-	for (int i = 1; i < threadsNumber; ++i)
+	for (uint32_t k = 0, threadsCount = args::START_TREADS_NUMBER; k <= multipliesCount; ++k, threadsCount *= 2)
 	{
-		x[i] = x[i - 1] + step;
-	}
+		std::cout << "Threads count: " << threadsCount << "\n";
 
-	double buf = 0;
-
-	time_point<steady_clock> start = steady_clock::now();
-
-	#pragma omp parallel for
-		for (int i = 0; i < threadsNumber; ++i)
+		for (uint32_t j = 0; j < itersCount; ++j)
 		{
-			buf = ntgrl::IntegralCalculator::calcIntegral(function, x[i], x[i] + step, rectWidth);
+			double totalIntegral = 0;
 
-			#pragma omp critical
+			double rectWidth = (right - left) / static_cast<double>(rects);
+
+			double step = (right - left) / static_cast<double>(threadsCount);
+
+			double* x = new double[threadsCount];
+
+			x[0] = left;
+
+			omp_set_num_threads(threadsCount);
+
+			for (int i = 1; i < threadsCount; ++i)
 			{
-				totalIntegral += buf;
+				x[i] = x[i - 1] + step;
 			}
+
+			double buf = 0;
+
+			time_point<steady_clock> start = steady_clock::now();
+
+#pragma omp parallel for
+			for (int i = 0; i < threadsCount; ++i)
+			{
+				buf = ntgrl::IntegralCalculator::calcIntegral(function, x[i], x[i] + step, rectWidth);
+
+#pragma omp critical
+				{
+					totalIntegral += buf;
+				}
+			}
+
+			time_point<steady_clock> finish = steady_clock::now();
+
+			nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
+
+			std::cout << msb::MessageBuilder::buildResultMessage(function, left, right, rects, totalIntegral, dur.count()) << "\n\n";
+
+			delete[] x;
 		}
 
-	time_point<steady_clock> finish = steady_clock::now();
-
-	nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
-
-	std::cout << msb::MessageBuilder::buildResultMessage(function, left, right, rects, totalIntegral, dur.count()) << "\n";
-
-	delete[] x;
+		std::cout << "\n\n";
+	}
 }

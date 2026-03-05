@@ -25,15 +25,20 @@ int main(int argc, char** argv)
 
 	ntgrl::singleArgFunc function = mth::Math::getMathFunction(funcIndex);
 
-	time_point<steady_clock> start = steady_clock::now();
+	uint32_t itersCount = static_cast<uint32_t>(atoi(argv[args::ARG_ITERATIONS_COUNT]));
 
-	double integral = ntgrl::IntegralCalculator::calcIntegral(function, left, right, rectWidth);
+	for (uint32_t i = 0; i < itersCount; ++i)
+	{
+		time_point<steady_clock> start = steady_clock::now();
 
-	time_point<steady_clock> finish = steady_clock::now();
+		double integral = ntgrl::IntegralCalculator::calcIntegral(function, left, right, rectWidth);
 
-	nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
+		time_point<steady_clock> finish = steady_clock::now();
 
-	std::cout << msb::MessageBuilder::buildResultMessage(function, left, right, rects, integral, dur.count()) << "\n";
+		nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
+
+		std::cout << msb::MessageBuilder::buildResultMessage(function, left, right, rects, integral, dur.count()) << "\n\n";
+	}
 
 	return 0;
 }

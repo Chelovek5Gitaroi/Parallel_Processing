@@ -48,35 +48,33 @@ int main(int argc, char** argv)
 
 	double integr = ntgrl::IntegralCalculator::calcIntegral(func, x, x + step, rectWidth);
 
-	MPI_Barrier(MPI_COMM_WORLD);
-
-	MPI_Request req;
-
-	if (pid < threadsNumber - 1)
+	if (pid == 0)
 	{
 		double buf = 0;
-
 		MPI_Status status;
-		MPI_Recv(&buf, 1, MPI_DOUBLE, pid + 1, pid + 1, MPI_COMM_WORLD, &status);
 
-		integr += buf;
-	}
+		for (int i = 1; i < threadsNumber; ++i)
+		{
+			MPI_Recv(&buf, 1, MPI_DOUBLE, i, i, MPI_COMM_WORLD, &status);
 
-	if (pid > 0)
-	{
-		MPI_Send(&integr, 1, MPI_DOUBLE, pid - 1, pid, MPI_COMM_WORLD);
-
-		MPI_Barrier(MPI_COMM_WORLD);
+			integr += buf;
+		}
 	}
 	else
 	{
-		MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Send(&integr, 1, MPI_DOUBLE, 0, pid, MPI_COMM_WORLD);
+	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	if (pid == 0)
+	{
 		time_point<steady_clock> finish;
 
 		finish = steady_clock::now();
 		nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
 
-		std::cout << msb::MessageBuilder::buildResultMessage(func, left, right, rects, integr, dur.count()) << "\n";
+		std::cout << msb::MessageBuilder::buildResultMessage(func, left, right, rects, integr, dur.count()) << "\n\n";
 	}
 
 	MPI_Finalize();
