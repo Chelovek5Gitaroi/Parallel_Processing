@@ -33,6 +33,8 @@ int main(int argc, char** argv)
 
 	double x = left + step * pid;
 
+	uint32_t itersCount = static_cast<uint32_t>(atoi(argv[args::ARG_ITERATIONS_COUNT]));
+
 	time_point<steady_clock> start;
 
 	uint32_t funcIndex = static_cast<uint32_t>(atoi(argv[args::ARG_FUNC]));
@@ -48,33 +50,40 @@ int main(int argc, char** argv)
 
 	double integr = ntgrl::IntegralCalculator::calcIntegral(func, x, x + step, rectWidth);
 
-	if (pid == 0)
+	for (int i = 0; i < itersCount; ++i)
 	{
-		double buf = 0;
-		MPI_Status status;
-
-		for (int i = 1; i < threadsNumber; ++i)
+		if (pid == 0)
 		{
-			MPI_Recv(&buf, 1, MPI_DOUBLE, i, i, MPI_COMM_WORLD, &status);
+			double buf = 0;
+			MPI_Status status;
 
-			integr += buf;
+			for (int i = 1; i < threadsNumber; ++i)
+			{
+				MPI_Recv(&buf, 1, MPI_DOUBLE, i, i, MPI_COMM_WORLD, &status);
+
+				integr += buf;
+			}
 		}
-	}
-	else
-	{
-		MPI_Send(&integr, 1, MPI_DOUBLE, 0, pid, MPI_COMM_WORLD);
-	}
+		else
+		{
+			MPI_Send(&integr, 1, MPI_DOUBLE, 0, pid, MPI_COMM_WORLD);
+		}
 
-	MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Barrier(MPI_COMM_WORLD);
 
-	if (pid == 0)
-	{
-		time_point<steady_clock> finish;
+		if (pid == 0)
+		{
+			std::cout << "Threads count: " << threadsNumber << "\n";
 
-		finish = steady_clock::now();
-		nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
+			time_point<steady_clock> finish;
 
-		std::cout << msb::MessageBuilder::buildResultMessage(func, left, right, rects, integr, dur.count()) << "\n\n";
+			finish = steady_clock::now();
+			nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
+
+			std::cout << msb::MessageBuilder::buildResultMessage(func, left, right, rects, integr, dur.count()) << "\n\n";
+		}
+
+		MPI_Barrier(MPI_COMM_WORLD);
 	}
 
 	MPI_Finalize();

@@ -85,7 +85,8 @@ namespace RectangleIntegralCs
             $"Rects: {rects}\n" +
             $"Function: {MathFunctions.FunctionToString(func)}\n" +
             $"Integral: {integral}\n" +
-            $"Time: {sw.Elapsed}\n\n");
+            $"Time: {sw.Elapsed}\n" +
+            $"Time milliseconds: {sw.ElapsedMilliseconds}\n\n");
         }
       }
     }
