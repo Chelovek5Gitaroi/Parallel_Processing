@@ -31,54 +31,62 @@ namespace RectangleIntegralCs
 
       int itersCount = int.Parse(args[ARG_ITERS]);
 
-      for (int k = 0, threadsCount = THREADS_COUNT_START; k < itersCount; ++k, threadsCount *= 2)
+      int threadsMultiplies = int.Parse(args[ARG_THREADS_MULTIPLY_COUNT]);
+
+
+      for (int t = 0, threadsCount = THREADS_COUNT_START; t <= threadsMultiplies; ++t, threadsCount *= 2)
       {
-        double step = (right - left) / threadsCount;
+        Console.WriteLine($"Threads count: {threadsCount}");
 
-        double[] x = new double[threadsCount];
-
-        x[0] = left;
-
-        for (int i = 1; i < threadsCount; i++)
+        for (int k = 0; k < itersCount; ++k)
         {
-          x[i] = x[i - 1] + step;
+          double step = (right - left) / threadsCount;
+
+          double[] x = new double[threadsCount];
+
+          x[0] = left;
+
+          for (int i = 1; i < threadsCount; i++)
+          {
+            x[i] = x[i - 1] + step;
+          }
+
+          Stopwatch sw = new Stopwatch();
+
+          List<Thread> threads = new List<Thread>();
+          List<IntegralWrapper> wrappers = new List<IntegralWrapper>();
+
+          for (int i = 0; i < threadsCount; ++i)
+          {
+            wrappers.Add(new IntegralWrapper(func, x[i], x[i] + step, rectWidth));
+            threads.Add(new Thread(wrappers[i].CalcIntegral));
+          }
+
+          sw.Start();
+
+          for (int i = 0; i < threadsCount; ++i)
+          {
+            threads[i].Start();
+          }
+
+          double integral = 0;
+
+          for (int i = 0; i < threadsCount; ++i)
+          {
+            threads[i].Join();
+            integral += wrappers[i].GetResult();
+          }
+
+          sw.Stop();
+
+
+          Console.WriteLine($"Left: {left}\n" +
+            $"Right: {right}\n" +
+            $"Rects: {rects}\n" +
+            $"Function: {MathFunctions.FunctionToString(func)}\n" +
+            $"Integral: {integral}\n" +
+            $"Time: {sw.Elapsed}\n\n");
         }
-
-        Stopwatch sw = new Stopwatch();
-
-        List<Thread> threads = new List<Thread>();
-        List<IntegralWrapper> wrappers = new List<IntegralWrapper>();
-
-        for (int i = 0; i < threadsCount; ++i)
-        {
-          wrappers.Add(new IntegralWrapper(func, x[i], x[i] + step, rectWidth));
-          threads.Add(new Thread(wrappers[i].CalcIntegral));
-        }
-
-        sw.Start();
-
-        for (int i = 0; i < threadsCount; ++i)
-        {
-          threads[i].Start();
-        }
-
-        double integral = 0;
-
-        for (int i = 0; i < threadsCount; ++i)
-        {
-          threads[i].Join();
-          integral += wrappers[i].GetResult();
-        }
-
-        sw.Stop();
-
-
-        Console.WriteLine($"Left: {left}\n" +
-          $"Right: {right}\n" +
-          $"Rects: {rects}\n" +
-          $"Function: {MathFunctions.FunctionToString(func)}\n" +
-          $"Integral: {integral}\n" +
-          $"Time: {sw.Elapsed}\n\n");
       }
     }
   }
