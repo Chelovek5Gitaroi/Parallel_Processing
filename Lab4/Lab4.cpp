@@ -22,6 +22,10 @@ int main(int argc, char** argv)
 
 	cl::Device device = ClBuilder::getDevice(platform, 0);
 
+	std::cout << device.getInfo<CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE>() << "\n";
+
+	//cl::Device::getInfo();
+
 	cl::Context context(device);
 	cl::CommandQueue queue(context, device);
 

@@ -1,3 +1,4 @@
+//#pragma OPENCL_EXTENSION cl_khr_fp64 : enable
 
 float funcX2pX(float x)
 {
@@ -23,7 +24,12 @@ float funcMx2sinX(float x)
 float funcX2sinXp4xDxPcosX(float x)
 {
 	float den = x + cos(x);
-
+	
+	if (fabs(den) <= 0.0000001)
+	{
+		return 0;
+	}
+	
 	return (sin(x) * powr(x, 2) + x * 4) / den;
 }
 
