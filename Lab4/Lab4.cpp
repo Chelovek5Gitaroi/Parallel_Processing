@@ -22,9 +22,10 @@ int main(int argc, char** argv)
 
 	cl::Device device = ClBuilder::getDevice(platform, 0);
 
-	std::cout << device.getInfo<CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE>() << "\n";
+	cl_int workGroupSize = static_cast<cl_int>(device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>());
+	size_t computeUnits = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
 
-	//cl::Device::getInfo();
+	std::cout << "Max work group size: " << workGroupSize << "\nCompute units: " << computeUnits << "\n";
 
 	cl::Context context(device);
 	cl::CommandQueue queue(context, device);
@@ -34,56 +35,53 @@ int main(int argc, char** argv)
 
 	uint64_t rects = static_cast<uint64_t>(std::stoull(argv[args::ARG_RECTS]));
 
-	cl_float rectWidth = (right - left) / static_cast<cl_float>(rects);
-
-	uint32_t multipliesCount = static_cast<uint32_t>(atoi(argv[args::ARG_THREADS_MULTIPLY_COUNT]));
-
-	uint32_t threadsCount = args::START_TREADS_NUMBER;
-
-	uint32_t itersCount = static_cast<uint32_t>(atoi(argv[args::ARG_ITERATIONS_COUNT]));
-
-	cl::Program program = ClBuilder::buildProgram("Kernel.cl", context);
-
-	std::cout << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
 
 	uint32_t funcIndex = static_cast<uint32_t>(atoi(argv[args::ARG_FUNC]));
 
+	cl_float rectWidth = (right - left) / static_cast<cl_float>(rects);
+
+	uint32_t itersCount = static_cast<uint32_t>(atoi(argv[args::ARG_ITERATIONS_COUNT]));
+
+	cl::Program program = ClBuilder::buildProgram("Kernel.cl", device, context, workGroupSize, funcIndex);
+
+	std::cout << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+
 	ntgrl::singleArgFunc function = mth::Math::getMathFunction(funcIndex);
 
-	for (int t = 0; t <= multipliesCount; ++t, threadsCount *= 2)
+	int bufLen = (rects / workGroupSize) * workGroupSize;
+
+	if (rects % workGroupSize)
 	{
-		std::vector<cl_float> vleft(threadsCount, 0);
-		std::vector<cl_float> vright(threadsCount, 0);
-		std::vector<cl_float> vresult(threadsCount, 0);
+		bufLen += workGroupSize;
+	}
 
-		cl_float step = (right - left) / threadsCount;
+	std::vector<cl_float> vleft(bufLen, 0);
+	std::vector<cl_float> vright(bufLen, 0);
+	std::vector<cl_float> vresult(bufLen, 0);
 
-		for (int i = 0; i < threadsCount; ++i)
-		{
-			vleft[i] = (left + i * step);
-			vright[i] = (vleft[i] + step);
-		}
+	for (int i = 0; i < rects; ++i)
+	{
+		vleft[i] = (left + i * rectWidth);
+		vright[i] = (vleft[i] + rectWidth);
+	}
+	
+	cl::Buffer bufLeft(context, vleft.begin(), vleft.end(), true);
+	cl::Buffer bufRight(context, vright.begin(), vright.end(), true);
+	cl::Buffer bufResult(context, vresult.begin(), vresult.end(), false);
 
-		cl::Buffer bufLeft(context, vleft.begin(), vleft.end(), true);
-		cl::Buffer bufRight(context, vright.begin(), vright.end(), true);
-		cl::Buffer bufResult(context, vresult.begin(), vresult.end(), false);
+	cl::Kernel kernel(program, "calcIntegral");
 
-		cl::Kernel kernel(program, "calcIntegralFunc5");
+	for (int i = 0; i < itersCount; ++i)
+	{
+		time_point<steady_clock> start = steady_clock::now();
 
-		std::cout << "Threads count: " << threadsCount << "\n";
+		cl_float result = ClBuilder::invokeKernel(queue, kernel, bufLeft, bufRight, rectWidth, bufResult, vresult.size(), vresult, workGroupSize);
 
-		for (int i = 0; i < itersCount; ++i)
-		{
-			time_point<steady_clock> start = steady_clock::now();
+		time_point<steady_clock> finish = steady_clock::now();
 
-			cl_float result = ClBuilder::invokeKernel(queue, kernel, bufLeft, bufRight, rectWidth, bufResult, vresult.size(), vresult);
+		nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
 
-			time_point<steady_clock> finish = steady_clock::now();
-
-			nanoseconds dur = std::chrono::duration_cast<nanoseconds>(finish - start);
-
-			std::cout << msb::MessageBuilder::buildResultMessage(function, left, right, rects, result, dur.count()) << "\n\n";
-		}
+		std::cout << msb::MessageBuilder::buildResultMessage(function, left, right, rects, result, dur.count()) << "\n\n";
 	}
 	
 	return 0;

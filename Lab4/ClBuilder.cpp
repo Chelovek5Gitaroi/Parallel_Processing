@@ -7,11 +7,41 @@ std::string ClBuilder::readClProgram(const std::string& programFileName)
 	return std::string(std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>());
 }
 
-cl::Program ClBuilder::buildProgram(const std::string& fileName, cl::Context& context)
+std::string ClBuilder::getFunctionName(int32_t index)
 {
-	const std::string code = readClProgram(fileName);
+	switch (index)
+	{
+	case 1:
+		return "funcX2pX";
+	case 2:
+		return "funcX3mX2pX";
+	case 3:
+		return "funcX2sinX";
+	case 4:
+		return "funcMx2sinX";
+	case 5:
+		return "funcX2sinXp4xDxPcosX";
+	default:
+		return "funcX2pX";
+	}
+}
 
-	cl::Program program(context, code, true);
+cl::Program ClBuilder::buildProgram(const std::string& fileName, const cl::Device& device, cl::Context& context, cl_int workGroupSize, int32_t funcIndex)
+{
+	const std::string fileCode = readClProgram(fileName);
+
+	const std::string sizeMacro = "#define SIZE " + std::to_string(workGroupSize) + "\n";
+
+	const std::string funcMacro = "#define FUNC(x) " + getFunctionName(funcIndex) + "(x)\n";
+
+	const std::string code = sizeMacro + funcMacro + fileCode;
+
+	//std::cout << code << "\n";
+
+	cl::Program program(context, code);
+
+	program.build();
+
 
 	return program;
 }
@@ -34,9 +64,9 @@ cl::Platform ClBuilder::getPlatform(size_t index)
 }
 
 cl_float ClBuilder::invokeKernel(cl::CommandQueue& queue, cl::Kernel& kernel, cl::Buffer& left, cl::Buffer& right,
-	cl_float rectWidth, cl::Buffer& resultBuf, size_t bufferSize, std::vector<cl_float>& resultVec)
+	cl_float rectWidth, cl::Buffer& resultBuf, size_t bufferSize, std::vector<cl_float>& resultVec, int workGroupSize)
 {
-	cl_int err;
+	cl_int err = 0;
 
 	err = kernel.setArg(0, left);
 	err = kernel.setArg(1, right);
@@ -45,15 +75,29 @@ cl_float ClBuilder::invokeKernel(cl::CommandQueue& queue, cl::Kernel& kernel, cl
 
 	cl::NDRange ndRange(bufferSize);
 
-	err = queue.enqueueNDRangeKernel(kernel, cl::NullRange, ndRange, cl::NullRange);
+	cl::NDRange groupSize(workGroupSize);
+
+	err = queue.enqueueNDRangeKernel(kernel, cl::NullRange, ndRange, groupSize);
+
+	if (err)
+	{
+		std::cout << "Enquing failed " << err << "\n";
+	}
 
 	queue.finish();
 
 	err = queue.enqueueReadBuffer(resultBuf, CL_TRUE, 0, sizeof(cl_float) * bufferSize, resultVec.data());
 
+	if (err)
+	{
+		std::cout << "Reading failed " << err << "\n";
+	}
+
+	int groupsCount = bufferSize / workGroupSize;
+
 	cl_float result = 0;
 
-	for (size_t i = 0; i < resultVec.size(); ++i)
+	for (size_t i = 0; i < groupsCount; ++i)
 	{
 		result += resultVec[i];
 	}

@@ -1,5 +1,3 @@
-//#pragma OPENCL_EXTENSION cl_khr_fp64 : enable
-
 float funcX2pX(float x)
 {
 	float exp = 2;
@@ -33,16 +31,31 @@ float funcX2sinXp4xDxPcosX(float x)
 	return (sin(x) * powr(x, 2) + x * 4) / den;
 }
 
-kernel void calcIntegralFunc5(global const float* left, global const float* right, float rectWidth, global float* result)
+kernel void calcIntegral(global const float* left, global const float* right, float rectWidth, global float* result)
 {
-	float res = 0.0;
+	int lid = get_local_id(0);
 
-	int i = get_global_id(0);
+	int gid = get_global_id(0);
+	float x = left[gid];
 
-	for (float x = left[i]; x < right[i] + rectWidth / 2; x += rectWidth)
+	local float buf[SIZE];
+
+	buf[lid] = FUNC(x) * rectWidth;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	for (int i = 2; i <= SIZE; i <<= 1)
 	{
-		res += funcX2sinXp4xDxPcosX(x) * rectWidth;
+		if (lid % i == 0)
+		{
+			buf[lid] += buf[lid + (i >> 1)];
+		}
+
+		barrier(CLK_LOCAL_MEM_FENCE);
 	}
 
-	result[i] = res;
+	if (lid == 0)
+	{
+		result[get_group_id(0)] = buf[0];
+	}
 }
